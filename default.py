@@ -632,13 +632,23 @@ def show_statistics():
         xbmcgui.Dialog().notification("KodiSeerr", "Failed to fetch statistics", xbmcgui.NOTIFICATION_ERROR)
     xbmc.executebuiltin("Action(Back)")
 
-def get_quality_profiles():
+def get_quality_profiles(media_type="movie"):
     """Get available quality profiles from server"""
     try:
-        # This depends on Jellyseerr API - might need adjustment
-        data = api_client.client.api_request('/settings/radarr')
-        if data and isinstance(data, list) and len(data) > 0:
-            profiles = data[0].get('profiles', [])
+        service = "radarr" if media_type == "movie" else "sonarr"
+        # Step 1: Get configured servers from settings
+        servers = api_client.client.api_request(f'/settings/{service}')
+        if not servers or not isinstance(servers, list) or len(servers) == 0:
+            xbmc.log(f"[KodiSeerr] No {service} servers configured", xbmc.LOGWARNING)
+            return []
+        server_id = servers[0].get('id')
+        if server_id is None:
+            xbmc.log(f"[KodiSeerr] {service} server has no id", xbmc.LOGWARNING)
+            return []
+        # Step 2: Fetch quality profiles from the service endpoint
+        data = api_client.client.api_request(f'/service/{service}/{server_id}')
+        if data:
+            profiles = data.get('profiles', [])
             return [(p['id'], p['name']) for p in profiles]
     except Exception as e:
         xbmc.log(f"[KodiSeerr] Quality profiles error: {e}", xbmc.LOGERROR)
@@ -672,7 +682,7 @@ def do_request(media_type, id):
             save_preferences(prefs)
     
     if addon.getSettingBool('show_quality_profiles'):
-        profiles = get_quality_profiles()
+        profiles = get_quality_profiles(media_type)
         if profiles:
             profile_names = [p[1] for p in profiles]
             selected = xbmcgui.Dialog().select('Select Quality Profile', profile_names)
