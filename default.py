@@ -972,7 +972,26 @@ else:
     except (ValueError, TypeError):
         page = 1
 
-if not mode:
+# Modes that don't require authentication
+NO_AUTH_MODES = {None, "test_connection", "clear_cache"}
+
+def ensure_logged_in():
+    """Attempt login and return True if successful, otherwise notify the user."""
+    if api_client.client.logged_in:
+        return True
+    if api_client.client.login():
+        return True
+    xbmcgui.Dialog().notification(
+        "KodiSeerr",
+        "Login failed - check Settings",
+        xbmcgui.NOTIFICATION_ERROR,
+        5000
+    )
+    return False
+
+if mode not in NO_AUTH_MODES and not ensure_logged_in():
+    xbmcplugin.endOfDirectory(addon_handle, succeeded=False)
+elif not mode:
     list_main_menu()
 elif mode == "test_connection":
     test_connection()
